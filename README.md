@@ -26,11 +26,11 @@ The voting application consists of the following components:
 4. Result service queries PostgreSQL and displays real-time results via WebSocket
 
 ### Network Architecture
-The application should use a **two-tier network architecture** for security and organization:
+The application uses a **two-tier network architecture** for security and organization:
 
 - **Frontend Tier Network**: 
-  - Vote service (port 8080)
-  - Result service (port 8081)
+  - Vote service (port 5000)
+  - Result service (port 5001)
   - Accessible from outside the Docker environment
 
 - **Backend Tier Network**:
@@ -41,83 +41,264 @@ The application should use a **two-tier network architecture** for security and 
 
 This separation ensures that database and message queue services are not directly accessible from outside, while the web services remain accessible to users.
 
-## Your Task
+---
 
-As a DevOps engineer, your task is to containerize this application and create the necessary infrastructure files. You need to create:
+## Phase 1: Containerization & Local Development ✅ COMPLETED
 
-### 1. Docker Files
-Create `Dockerfile` for each service:
-- `vote/Dockerfile` - for the Python Flask application
-- `result/Dockerfile` - for the Node.js application  
-- `worker/Dockerfile` - for the .NET worker application
-- `seed-data/Dockerfile` - for the data seeding utility
+### Implemented Solutions
 
-### 2. Docker Compose
-Create `docker-compose.yml` that:
-- Defines all services with proper networking using **two-tier architecture**:
-  - **Frontend tier**: Vote and Result services (user-facing)
-  - **Backend tier**: Worker, Redis, and PostgreSQL (internal services)
-- Sets up health checks for Redis and PostgreSQL
-- Configures proper service dependencies
-- Exposes the vote service on port 8080 and result service on port 8081
-- Uses the provided health check scripts in `/healthchecks` directory
+#### 1. Docker Files ✅
+Created multi-stage Dockerfiles for all services:
+- ✅ `docker/vote/Dockerfile` - Python Flask with Gunicorn
+- ✅ `docker/result/Dockerfile` - Node.js with Express
+- ✅ `docker/worker/Dockerfile` - .NET 7.0 worker application
 
-### 3. Health Checks
-The application includes health check scripts:
-- `healthchecks/redis.sh` - Redis health check
-- `healthchecks/postgres.sh` - PostgreSQL health check
+**Key Features:**
+- Multi-stage builds for optimized image sizes
+- Alpine Linux base images for security
+- Non-root user configuration
+- Security updates via `apk upgrade`
+- Proper health checks
 
-Use these scripts in your Docker Compose configuration to ensure services are ready before dependent services start.
+#### 2. Docker Compose ✅
+Created comprehensive Docker Compose configuration:
+- ✅ `docker-compose.yml` - Production configuration
+- ✅ `docker-compose.override.yml` - Development overrides
 
-## Requirements
+**Implementation Details:**
+- Two-tier network architecture (frontend/backend)
+- Health checks for Redis and PostgreSQL
+- Proper service dependencies with `depends_on` conditions
+- Environment variable configuration
+- Vote service on port 5000
+- Result service on port 5001
 
-- All services should be properly networked using **two-tier architecture**:
-  - **Frontend tier network**: Connect Vote and Result services
-  - **Backend tier network**: Connect Worker, Redis, and PostgreSQL
-  - Both tiers should be isolated for security
-- Health checks must be implemented for Redis and PostgreSQL
-- Services should wait for their dependencies to be healthy before starting
-- The vote service should be accessible at `http://localhost:8080`
-- The result service should be accessible at `http://localhost:8081`
-- Use appropriate base images and follow Docker best practices
-- Ensure the application works end-to-end when running `docker compose up`
-- Include a seed service that can populate test data
+#### 3. Automation & Testing ✅
+Created `Makefile` with commands:
+```bash
+make build          # Build all Docker images
+make up             # Start all services
+make down           # Stop all services
+make logs           # View logs
+make ps             # Show running containers
+make test           # Run smoke tests
+make security-scan  # Run Trivy vulnerability scans
+make clean          # Clean up all resources
+make restart        # Restart services
+make rebuild        # Rebuild and restart
+```
 
-## Data Population
+**Smoke Test Suite:**
+- ✅ Vote service endpoint validation
+- ✅ Result service endpoint validation
+- ✅ PostgreSQL connectivity test
+- ✅ Redis connectivity test
+- ✅ Vote submission functionality test
 
-The application includes a seed service (`/seed-data`) that can populate the database with test votes:
+All tests passing: **5/5** ✅
 
-- **`make-data.py`**: Creates URL-encoded vote data files (`posta` and `postb`)
-- **`generate-votes.sh`**: Uses Apache Bench (ab) to send 3000 test votes:
-  - 2000 votes for option A
-  - 1000 votes for option B
+#### 4. Security Implementation ✅
+- ✅ Trivy integration for vulnerability scanning
+- ✅ Non-root users in all containers
+- ✅ Minimal Alpine Linux base images
+- ✅ Regular security updates
+- ✅ Network isolation (frontend/backend)
 
-### How to Use Seed Data
+### Bug Fixes Applied
 
-1. Include the seed service in your `docker-compose.yml`
-2. Run the seed service after all other services are healthy:
-   ```bash
-   docker compose run --rm seed
-   ```
-3. Or run it as a one-time service with a profile:
-   ```bash
-   docker compose --profile seed up
-   ```
+1. **Result Service Port Mapping** - Fixed port mismatch (internal 4000 → external 5001)
+2. **Worker .NET Compatibility** - Aligned Dockerfile to use .NET 7.0 runtime
+3. **Volume Mount Conflict** - Removed worker volume mount that overwrote compiled DLL
+4. **Test Script Arithmetic** - Fixed `((var++))` operations causing premature exit
+5. **Permission Handling** - Added sudo support for Docker commands
 
-## Getting Started
+---
 
-1. Examine the source code in each service directory
-2. Create the necessary Dockerfiles
-3. Create the docker-compose.yml file with two-tier networking
-4. Test your implementation by running `docker compose up`
-5. Populate test data using the seed service
-6. Verify that you can vote and see results in real-time
+## Quick Start
 
-## Notes
+### Prerequisites
+- Docker Engine 20.10+
+- Docker Compose V2
+- Make
+- Trivy (for security scanning)
 
-- The voting application only accepts one vote per client browser
-- The result service uses WebSocket for real-time updates
-- The worker service continuously processes votes from the Redis queue
-- Make sure to handle service startup order properly with health checks
+### Running the Application
+```bash
+# Build all images
+make build
 
-Good luck with your challenge! 🚀
+# Start all services
+make up
+
+# Wait for services to be healthy (about 30 seconds)
+# Check status
+make ps
+
+# Run tests to verify everything works
+make test
+
+# Access the application
+# Vote: http://localhost:5000
+# Results: http://localhost:5001
+```
+
+### Stopping the Application
+```bash
+# Stop services
+make down
+
+# Clean everything (containers, volumes, images)
+make clean
+```
+
+---
+
+## Development
+
+For local development with hot-reloading:
+```bash
+# Services automatically use docker-compose.override.yml
+make up
+
+# View logs in real-time
+make logs
+```
+
+**Note:** The override file provides volume mounts for vote and result services for development convenience.
+
+---
+
+## Testing
+
+Run the comprehensive smoke test suite:
+```bash
+make test
+```
+
+Expected output:
+```
+=== Voting App Smoke Tests ===
+Testing Vote Service (http://localhost:5000)... PASSED (HTTP 200)
+Testing Result Service (http://localhost:5001)... PASSED (HTTP 200)
+Testing PostgreSQL connection... PASSED
+Testing Redis connection... PASSED
+Testing vote submission... PASSED
+
+=== Test Summary ===
+Passed: 5
+Failed: 0
+All tests passed!
+```
+
+---
+
+## Security Scanning
+
+Run Trivy security scans:
+```bash
+make security-scan
+```
+
+Scans all custom images for HIGH and CRITICAL vulnerabilities.
+
+---
+
+## Project Structure
+```
+.
+├── vote/                           # Python voting service
+│   ├── app.py
+│   └── requirements.txt
+├── result/                         # Node.js results service
+│   ├── server.js
+│   └── package.json
+├── worker/                         # .NET worker service
+│   ├── Program.cs
+│   └── Worker.csproj
+├── docker/                         # Dockerfiles
+│   ├── vote/Dockerfile
+│   ├── result/Dockerfile
+│   └── worker/Dockerfile
+├── scripts/
+│   └── smoke-test.sh              # Automated testing
+├── docker-compose.yml             # Production config
+├── docker-compose.override.yml    # Development overrides
+├── Makefile                       # Automation commands
+└── README.md                      # This file
+```
+
+---
+
+## Troubleshooting
+
+### Services not starting
+```bash
+# Check logs for errors
+make logs
+
+# Rebuild from scratch
+make clean
+make build
+make up
+```
+
+### Tests failing
+```bash
+# Ensure all services are healthy
+make ps
+
+# Wait longer for services to stabilize
+sleep 30
+make test
+```
+
+### Worker service restarting
+- Verify .NET 7.0 compatibility in Worker.csproj
+- Check Redis and PostgreSQL connectivity
+- Review worker logs: `docker compose logs worker`
+
+### Permission denied errors
+```bash
+# Add user to docker group (one-time setup)
+sudo usermod -aG docker $USER
+# Log out and back in for changes to take effect
+```
+
+---
+
+## Technical Details
+
+### Service Ports
+- **Vote Service**: 5000 (external) → 5000 (internal)
+- **Result Service**: 5001 (external) → 4000 (internal)
+- **PostgreSQL**: 5432 (internal only)
+- **Redis**: 6379 (internal only)
+
+### Health Checks
+- **Redis**: `redis-cli ping` every 5s
+- **PostgreSQL**: `pg_isready` every 10s
+- **Worker**: Process check every 30s
+- **Vote**: HTTP check on port 5000
+- **Result**: HTTP check on port 4000
+
+### Environment Variables
+All services configured with appropriate environment variables for connectivity and configuration.
+
+---
+
+## Next Phases
+
+- **Phase 2**: CI/CD Pipeline Setup
+- **Phase 3**: Kubernetes Deployment
+- **Phase 4**: Monitoring & Observability
+
+---
+
+## Contributing
+
+Hassan - DevOps Engineer
+
+---
+
+## License
+Code Quest Challanges

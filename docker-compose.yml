@@ -1,0 +1,171 @@
+version: '3.9'
+
+# Define custom networks for better isolation
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+
+# Define volumes for data persistence
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+services:
+  # Vote service - Python Flask frontend
+  vote:
+    build:
+      context: ./vote
+      dockerfile: ../docker/vote/Dockerfile
+    container_name: voting-app-vote
+    ports:
+      - "5000:5000"
+    networks:
+      - frontend
+      - backend
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Result service - Node.js frontend
+  result:
+    build:
+      context: ./result
+      dockerfile: ../docker/result/Dockerfile
+    container_name: voting-app-result
+    ports:
+      - "5001:4000"
+    networks:
+      - frontend
+      - backend
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Worker service - Processes votes from Redis to Postgres
+  worker:
+    build:
+      context: ./worker
+      dockerfile: ../docker/worker/Dockerfile
+    container_name: voting-app-worker
+    networks:
+      - backend
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Redis - Message queue
+  redis:
+    image: redis:7-alpine
+    container_name: voting-app-redis
+    networks:
+      - backend
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # PostgreSQL - Database
+  db:
+    image: postgres:15-alpine
+    container_name: voting-app-db
+    networks:
+      - backend
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M

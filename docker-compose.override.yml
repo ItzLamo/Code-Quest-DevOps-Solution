@@ -1,0 +1,17 @@
+version: '3.9'
+
+services:
+  vote:
+    volumes:
+      - ./vote:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+
+  result:
+    volumes:
+      - ./result:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+

@@ -1,0 +1,11 @@
+target/
+.mvn/
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+bin/
+obj/
+*.user
+
